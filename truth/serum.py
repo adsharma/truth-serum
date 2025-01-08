@@ -1,5 +1,6 @@
 import asyncio
-import json
+import csv
+import io
 import re
 from datetime import date
 from typing import List
@@ -52,18 +53,24 @@ def extract_code(text):
 @task
 async def fetch_countries() -> List[Country]:
     logger = get_run_logger()
+    # csv is fewer tokens than json
     result = llm.generate(
         [
-            """List all countries and their capitals in json format with keys
-            (id, name, capital) between three backticks.
-            Be concise. I want just the full json without truncating."""
+            """Be short and complete. List all countries in the world in English and their capitals as csv.
+            No headers, no explanation. One capital only"""
         ]
     )
     text = result.generations[0][0].text
-    logger.debug(text)
-    json_string = extract_code(text)
-    # Parse JSON string into a Python list
-    data = json.loads(json_string)
+    logger.info(text)
+    if text.startswith("```"):
+        csv_string = extract_code(text)
+    else:
+        csv_string = text
+    data = [
+        {"id": i + 1, "name": row[0], "capital": row[1]}
+        for i, row in enumerate(csv.reader(io.StringIO(csv_string)))
+        if len(row) == 2
+    ]
     countries = [Country(**c) for c in data]
     Session = sessionmaker(bind=engine)
 
