@@ -1,16 +1,25 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+# .pre-commit-config.yaml
+
 repos:
-  - repo: https://github.com/psf/black
-    rev: 22.3.0
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
     hooks:
-      - id: black
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+    -   id: check-yaml
+-   repo: https://github.com/psf/black-pre-commit-mirror
+    rev: 24.10.0
+    hooks:
+    -   id: black
         language_version: python3
-  - repo: https://github.com/econchick/interrogate
-    rev: 1.5.0
+        args: []
+-   repo: https://github.com/pycqa/isort
+    rev: 5.13.2
     hooks:
-      - id: interrogate
-        args: [-vv]
-        pass_filenames: false
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: 'v0.0.254'
+    -   id: isort
+-   repo: https://github.com/pycqa/flake8
+    rev: 7.1.1
     hooks:
-      - id: ruff
+    -   id: flake8
