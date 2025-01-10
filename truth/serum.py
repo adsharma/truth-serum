@@ -2,42 +2,65 @@ import asyncio
 import csv
 import io
 import re
+from dataclasses import dataclass, field
 from datetime import date
 from typing import List
 
-from fquery.sqlmodel import model
+from fquery.sqlmodel import GLOBAL_ID_SEQ, SQL_PK, model
 from langchain_ollama import OllamaLLM
 from prefect import flow, task
 from prefect.logging import get_run_logger
-from pydantic.dataclasses import dataclass
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
 
 llm = OllamaLLM(model="qwen2.5:latest")
 
 
-@model("countries")
+@model(global_id=True)
+@dataclass
+class ObjectType:
+    name: str
+    id: int | None = None
+
+
+@model("countries", global_id=True)
 @dataclass
 class Country:
-    id: int
     name: str
-    capital: str
+    id: int | None = None
 
 
-@model("relations")
+@model("cities", global_id=True)
+@dataclass
+class City:
+    name: str
+    id: int | None = None
+
+
+INFINITY_DATE = date.max
+
+
+@model(global_id=True)
 @dataclass
 class Relation:
-    id: int
-    src: int
-    type: int
-    target: int
-    start: date
-    end: date
-    viewpoint: int
+    src: int = field(**SQL_PK)
+    etype: int = field(**SQL_PK)
+    dst: int = field(**SQL_PK)
+    start: date = field(default_factory=date.today)
+    end: date | None = field(default_factory=lambda: INFINITY_DATE)
+    viewpoint: int | None = 0
 
 
-engine = create_engine("sqlite:///kg.db", echo=True)
+@model(global_id=True)
+@dataclass
+class TypeRelation:
+    src: int = field(**SQL_PK)
+    etype: int = field(**SQL_PK)
+    dst: int = field(**SQL_PK)
+
+
+engine = create_engine("duckdb:///kg.db", echo=True)
 SQLModel.metadata.create_all(engine)
 
 
@@ -56,7 +79,7 @@ async def fetch_countries() -> List[Country]:
     # csv is fewer tokens than json
     result = llm.generate(
         [
-            """Be short and complete. List all countries in the world in English and their capitals as csv.
+            """Be short and complete. List 5 countries in the world in English and their capitals as csv.
             No headers, no explanation. One capital only"""
         ]
     )
@@ -71,12 +94,50 @@ async def fetch_countries() -> List[Country]:
         for i, row in enumerate(csv.reader(io.StringIO(csv_string)))
         if len(row) == 2
     ]
-    countries = [Country(**c) for c in data]
+    countries = [Country(c["name"]) for c in data]
+    capitals = [City(c["capital"]) for c in data]
     Session = sessionmaker(bind=engine)
 
+    # This needs to be done only once
+    CAPITAL_RELATION = 1000000
+    INSTANCE_OF = 1000001
+    COUNTRY_TYPE = ObjectType("Country").sqlmodel()
+    CITY_TYPE = ObjectType("City").sqlmodel()
+
     with Session() as session:
-        for c in countries:
-            session.add(c.sqlmodel())
+        session.add(COUNTRY_TYPE)
+        session.add(CITY_TYPE)
+        session.commit()
+        session.refresh(COUNTRY_TYPE)
+        session.refresh(CITY_TYPE)
+
+    # 10 = 5 countries + 5 capitals
+    with engine.connect() as conn:
+        ids = [conn.execute(func.next_value(GLOBAL_ID_SEQ)).scalar() for _ in range(10)]
+
+    with Session() as session:
+        for country, capital in zip(countries, capitals):
+            country_model = country.sqlmodel()
+            capital_model = capital.sqlmodel()
+            country_model.id = ids.pop(0)
+            capital_model.id = ids.pop(0)
+            session.add(country_model)
+            session.add(capital_model)
+            print(capital_model.id, country_model.id)
+            session.add(
+                TypeRelation(
+                    src=country_model.id, etype=INSTANCE_OF, dst=COUNTRY_TYPE.id
+                ).sqlmodel()
+            )
+            session.add(
+                TypeRelation(
+                    src=capital_model.id, etype=INSTANCE_OF, dst=CITY_TYPE.id
+                ).sqlmodel()
+            )
+            relation = Relation(
+                src=country_model.id, etype=CAPITAL_RELATION, dst=capital_model.id
+            )
+            session.add(relation.sqlmodel())
         session.commit()
     return countries
 
@@ -84,7 +145,7 @@ async def fetch_countries() -> List[Country]:
 @task
 async def process_countries(countries: List[Country]) -> List[str]:
     # Process the countries, e.g., extract names
-    return [country.capital for country in countries]
+    return [country.name for country in countries]
 
 
 @flow
