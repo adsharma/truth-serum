@@ -27,11 +27,21 @@ def main(args):
 
     with open(f"{args.key}.meta.json") as f:
         metadata = json.load(f)
-    metadata["fields"] = json.dumps(metadata["fields"])
+    field_data = metadata["fields"]
+    metadata_fields = pd.DataFrame(  # noqa: F841 used in the SQL query below
+        [
+            [col, v]
+            for col, col_val in field_data.items()
+            for k, v in col_val.items()
+            if k == "title"
+        ],
+        columns=["field", "title"],
+    )
     metadata_df = pd.DataFrame([metadata])  # noqa: F841 used in the SQL query below
     con.execute(
-        f"CREATE TABLE {args.key}_metadata AS SELECT fields::JSON as fields, * exclude(fields) from metadata_df"
+        f"CREATE TABLE {args.key}_metadata AS SELECT * exclude(fields) from metadata_df"
     )
+    con.execute(f"CREATE TABLE {args.key}_fields AS SELECT * from metadata_fields")
 
     con.close()
 
