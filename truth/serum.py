@@ -2,12 +2,11 @@ import asyncio
 import csv
 import io
 import re
-from dataclasses import dataclass
 from typing import List
 
 from database import Database, engine
 from fquery.sqlmodel import GLOBAL_ID_SEQ
-from kg import GraphBase, Relation, graph
+from kg import Relation, graph
 from langchain_ollama import OllamaLLM
 from prefect import flow, task
 from prefect.logging import get_run_logger
@@ -18,15 +17,13 @@ LLM = OllamaLLM(model="qwen2.5:latest")
 
 
 @graph
-@dataclass
-class Country(GraphBase):
+class Country:
     name: str
     id: int | None = None
 
 
 @graph
-@dataclass
-class City(GraphBase):
+class City:
     name: str
     id: int | None = None
 

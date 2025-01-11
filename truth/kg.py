@@ -53,8 +53,13 @@ class GraphBase:
         self.create_object_type_relation()
 
 
+def inject_base(cls):
+    extras = {"__post_init__": GraphBase.__post_init__}
+    return type(cls.__name__, (GraphBase,), {**cls.__dict__, **extras})
+
+
 def graph(cls):
-    return model(global_id=True)(cls)
+    return model(global_id=True)(dataclass(inject_base(cls)))
 
 
 INFINITY_DATE = date.max
