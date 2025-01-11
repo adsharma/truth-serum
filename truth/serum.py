@@ -4,13 +4,11 @@ import io
 import re
 from typing import List
 
-from database import Database, engine
-from fquery.sqlmodel import GLOBAL_ID_SEQ
-from kg import Relation, graph
+from database import Database, allocate_ids, engine
+from kg import InstanceOf, Relation, graph, property
 from langchain_ollama import OllamaLLM
 from prefect import flow, task
 from prefect.logging import get_run_logger
-from sqlalchemy import func
 from sqlmodel import SQLModel
 
 LLM = OllamaLLM(model="qwen2.5:latest")
@@ -26,6 +24,14 @@ class Country:
 class City:
     name: str
     id: int | None = None
+
+
+@property
+class CapitalRelation:
+    pass
+
+
+SQLModel.metadata.create_all(engine)
 
 
 def extract_code(text):
@@ -62,11 +68,9 @@ async def fetch_countries() -> List[Country]:
     capitals = [City(c["capital"]) for c in data]
 
     # This needs to be done only once
-    CAPITAL_RELATION = 1000000
 
     # 10 = 5 countries + 5 capitals
-    with engine.connect() as conn:
-        ids = [conn.execute(func.next_value(GLOBAL_ID_SEQ)).scalar() for _ in range(10)]
+    ids = allocate_ids(10)
 
     with Database().db as session:
         for country, capital in zip(countries, capitals):
@@ -78,7 +82,9 @@ async def fetch_countries() -> List[Country]:
             session.add(capital_model)
             print(capital_model.id, country_model.id)
             relation = Relation(
-                src=country_model.id, etype=CAPITAL_RELATION, dst=capital_model.id
+                src=country_model.id,
+                etype=CapitalRelation.TYPE.id,
+                dst=capital_model.id,
             )
             session.add(relation.sqlmodel())
         session.commit()
@@ -97,8 +103,13 @@ async def async_flow():
     return await process_countries(countries)
 
 
+def init_edge_types():
+    CapitalRelation()
+    InstanceOf()
+
+
 async def async_main():
-    SQLModel.metadata.create_all(engine)
+    init_edge_types()
     # Run the flow
     result = await async_flow()
     print(result)

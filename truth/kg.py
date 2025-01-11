@@ -13,7 +13,11 @@ class ObjectType:
     id: int | None = None
 
 
-INSTANCE_OF = 1000001
+@model(global_id=True)
+@dataclass
+class PropertyType:
+    name: str
+    id: int | None = None
 
 
 class GraphBase:
@@ -24,7 +28,7 @@ class GraphBase:
         with db as session:
             session.add(
                 TypeRelation(
-                    src=self.id, etype=INSTANCE_OF, dst=self.__class__.TYPE.id
+                    src=self.id, etype=InstanceOf.TYPE.id, dst=self.__class__.TYPE.id
                 ).sqlmodel()
             )
             session.commit()
@@ -53,13 +57,47 @@ class GraphBase:
         self.create_object_type_relation()
 
 
+class PropertyBase:
+    @classmethod
+    def create_property_type(cls):
+        # check if PropertyType exists in db
+        db = Database().db
+        prop_sqlmodel = PropertyType(cls.__name__).sqlmodel()
+        PropertyTypeSQLModel = prop_sqlmodel.__class__
+        statement = select(PropertyTypeSQLModel).where(
+            PropertyTypeSQLModel.name == cls.__name__
+        )
+        result = db.exec(statement).first()
+        if result is None:
+            with db as session:
+                session.add(prop_sqlmodel)
+                session.commit()
+                session.refresh(prop_sqlmodel)
+        else:
+            prop_sqlmodel = result
+        cls.TYPE = PropertyType(prop_sqlmodel.name, prop_sqlmodel.id)
+
+    def __post_init__(self):
+        if not hasattr(self.__class__, "TYPE"):
+            self.create_property_type()
+
+
 def inject_base(cls):
     extras = {"__post_init__": GraphBase.__post_init__}
     return type(cls.__name__, (GraphBase,), {**cls.__dict__, **extras})
 
 
+def inject_property_base(cls):
+    extras = {"__post_init__": PropertyBase.__post_init__}
+    return type(cls.__name__, (PropertyBase,), {**cls.__dict__, **extras})
+
+
 def graph(cls):
     return model(global_id=True)(dataclass(inject_base(cls)))
+
+
+def property(cls):
+    return dataclass(inject_property_base(cls))
 
 
 INFINITY_DATE = date.max
@@ -82,3 +120,8 @@ class TypeRelation:
     src: int = field(**SQL_PK)
     etype: int = field(**SQL_PK)
     dst: int = field(**SQL_PK)
+
+
+@property
+class InstanceOf:
+    pass

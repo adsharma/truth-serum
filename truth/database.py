@@ -1,9 +1,19 @@
-from sqlalchemy import create_engine
+from typing import List
+
+from fquery.sqlmodel import GLOBAL_ID_SEQ
+from sqlalchemy import create_engine, func
 from sqlmodel import Session
 
 DATABASE_URL = "duckdb:///kg.db"
 
 engine = create_engine(DATABASE_URL, echo=True)
+
+
+def allocate_ids(n) -> List[int] | None:
+    ids = None
+    with engine.connect() as conn:
+        ids = [conn.execute(func.next_value(GLOBAL_ID_SEQ)).scalar() for _ in range(n)]
+    return ids
 
 
 class Database:
