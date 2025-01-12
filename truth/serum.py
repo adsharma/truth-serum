@@ -5,30 +5,14 @@ import re
 from typing import List
 
 from database import Database, allocate_ids, engine
-from kg import InstanceOf, Relation, graph, property
+from kg import InstanceOf, Relation
 from langchain_ollama import OllamaLLM
 from prefect import flow, task
 from prefect.logging import get_run_logger
+from schema.places import CapitalRelation, City, Country
 from sqlmodel import SQLModel
 
 LLM = OllamaLLM(model="qwen2.5:latest")
-
-
-@graph
-class Country:
-    name: str
-    id: int | None = None
-
-
-@graph
-class City:
-    name: str
-    id: int | None = None
-
-
-@property
-class CapitalRelation:
-    pass
 
 
 SQLModel.metadata.create_all(engine)
