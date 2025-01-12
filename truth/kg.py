@@ -28,7 +28,7 @@ class GraphBase:
         with db as session:
             session.add(
                 TypeRelation(
-                    src=self.id, etype=InstanceOf.TYPE.id, dst=self.__class__.TYPE.id
+                    src=self.id, rtype=InstanceOf.TYPE.id, dst=self.__class__.TYPE.id
                 ).sqlmodel()
             )
             session.commit()
@@ -107,10 +107,11 @@ INFINITY_DATE = date.max
 @dataclass
 class Relation:
     src: int = field(**SQL_PK)
-    etype: int = field(**SQL_PK)
+    rtype: int = field(**SQL_PK)
     dst: int = field(**SQL_PK)
     start: date = field(default_factory=date.today)
     end: date | None = field(default_factory=lambda: INFINITY_DATE)
+    probability: float = field(default_factory=lambda: 1.0)
     viewpoint: int | None = 0
 
 
@@ -118,7 +119,7 @@ class Relation:
 @dataclass
 class TypeRelation:
     src: int = field(**SQL_PK)
-    etype: int = field(**SQL_PK)
+    rtype: int = field(**SQL_PK)
     dst: int = field(**SQL_PK)
 
 

@@ -83,7 +83,7 @@ async def fetch_countries() -> List[Country]:
             print(capital_model.id, country_model.id)
             relation = Relation(
                 src=country_model.id,
-                etype=CapitalRelation.TYPE.id,
+                rtype=CapitalRelation.TYPE.id,
                 dst=capital_model.id,
             )
             session.add(relation.sqlmodel())
