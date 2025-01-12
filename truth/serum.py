@@ -51,8 +51,6 @@ async def fetch_countries() -> List[Country]:
     countries = [Country(c["name"]) for c in data]
     capitals = [City(c["capital"]) for c in data]
 
-    # This needs to be done only once
-
     # 10 = 5 countries + 5 capitals
     ids = allocate_ids(10)
 
@@ -64,7 +62,6 @@ async def fetch_countries() -> List[Country]:
             capital_model.id = ids.pop(0)
             session.add(country_model)
             session.add(capital_model)
-            print(capital_model.id, country_model.id)
             relation = Relation(
                 src=country_model.id,
                 rtype=CapitalRelation.TYPE.id,

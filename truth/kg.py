@@ -21,9 +21,9 @@ class PropertyType:
 
 
 class GraphBase:
-    def create_object_type_relation(self):
-        if not hasattr(self.__class__, "TYPE"):
-            self.create_object_type()
+    def create_object_type_relation(self, derived):
+        if not hasattr(derived, "TYPE"):
+            self.create_object_type(derived)
         db = Database().db
         with db as session:
             session.add(
@@ -34,8 +34,8 @@ class GraphBase:
             session.commit()
 
     @classmethod
-    def create_object_type(cls):
-        print(f"Initializing {cls.__name__} in db")
+    def create_object_type(cls, derived):
+        cls = derived
         # check if ObjectType exists in db
         db = Database().db
         obj_sqlmodel = ObjectType(cls.__name__).sqlmodel()
@@ -54,7 +54,7 @@ class GraphBase:
         cls.TYPE = ObjectType(obj_sqlmodel.name, obj_sqlmodel.id)
 
     def __post_init__(self):
-        self.create_object_type_relation()
+        self.create_object_type_relation(self.__class__)
 
 
 class PropertyBase:
@@ -82,9 +82,17 @@ class PropertyBase:
             self.create_property_type()
 
 
+# This is logically equivalent to
+# type(cls.__name__, (GraphBase,), {**cls.__dict__, **extras})
+#
+# but without field ordering issues
 def inject_base(cls):
-    extras = {"__post_init__": GraphBase.__post_init__}
-    return type(cls.__name__, (GraphBase,), {**cls.__dict__, **extras})
+    cls.__annotations__["id"] = int | None
+    cls.id = field(default=None)
+    cls.create_object_type = GraphBase.create_object_type
+    cls.create_object_type_relation = GraphBase.create_object_type_relation
+    cls.__post_init__ = GraphBase.__post_init__
+    return cls
 
 
 def inject_property_base(cls):
