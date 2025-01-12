@@ -9,7 +9,14 @@ from kg import InstanceOf, Relation
 from langchain_ollama import OllamaLLM
 from prefect import flow, task
 from prefect.logging import get_run_logger
+from schema.events import Event  # noqa F401: need this for the schema to be loaded
+from schema.people import Person  # noqa F401: need this for the schema to be loaded
 from schema.places import CapitalRelation, City, Country
+from schema.things import Building  # noqa F401: need this for the schema to be loaded
+from schema.topics import Topic  # noqa F401: need this for the schema to be loaded
+from schema.viewpoints import (  # noqa F401: need this for the schema to be loaded
+    Viewpoint,
+)
 from sqlmodel import SQLModel
 
 LLM = OllamaLLM(model="qwen2.5:latest")
