@@ -5,7 +5,7 @@ import re
 from typing import List
 
 from database import engine
-from kg import InstanceOf, save_graph, save_objs
+from kg import InstanceOf, save_graph, save_graph_prob, save_objs
 from langchain_ollama import OllamaLLM
 from prefect import flow, task
 from prefect.logging import get_run_logger
@@ -13,7 +13,7 @@ from schema.events import Event  # noqa F401: need this for the schema to be loa
 from schema.people import Person  # noqa F401: need this for the schema to be loaded
 from schema.places import CapitalRelation, City, Country
 from schema.things import Building  # noqa F401: need this for the schema to be loaded
-from schema.topics import Topic  # noqa F401: need this for the schema to be loaded
+from schema.topics import SubtopicOfRelation, Topic
 from schema.viewpoints import (  # noqa F401: need this for the schema to be loaded
     Viewpoint,
 )
@@ -52,7 +52,7 @@ async def fetch_countries() -> List[Country]:
         csv_string = text
 
     rows = list(csv.reader(io.StringIO(csv_string)))
-    return save_graph(rows, Country, City, CapitalRelation)
+    return await save_graph(rows, Country, City, CapitalRelation)
 
 
 @flow
@@ -61,16 +61,21 @@ async def async_flow():
     print(f"saved {n} country, capital, pairs")
     rows = csv.reader(open("truth/seed/viewpoints.csv"))
     next(rows)  # skip header
-    objs = save_objs(list(rows), Viewpoint)
+    # TODO: investigate why refresh=True fails on the next line
+    objs = await save_objs(list(rows), Viewpoint)
     print(f"saved {len(objs)} viewpoints")
-    root_topic = save_objs([("Root", "Root topic")], Topic)
+    root_topic = (await save_objs([("Root",)], Topic, True))[0]
     print(f"root topic: {root_topic}")
+    rows = csv.reader(open("truth/seed/topics_level1.csv"))
+    next(rows)  # skip header
+    objs = await save_graph_prob(root_topic.id, list(rows), Topic, SubtopicOfRelation)
     return n
 
 
 def init_edge_types():
     CapitalRelation()
     InstanceOf()
+    SubtopicOfRelation()
 
 
 async def async_main():

@@ -137,7 +137,7 @@ class InstanceOf:
     pass
 
 
-def save_graph(
+async def save_graph(
     rows: List, left_model: SQLModel, right_model: SQLModel, relation_class: Relation
 ) -> int:
     ids = allocate_ids(2 * len(rows))
@@ -161,7 +161,7 @@ def save_graph(
 
 
 # Unlike save_graph, this saves only objects of a given type. Relations to be added later
-def save_objs(rows: List, left_model: SQLModel) -> List[SQLModel]:
+async def save_objs(rows: List, left_model: SQLModel, refresh=False) -> List[SQLModel]:
     ids = allocate_ids(len(rows))
     objs = []
 
@@ -169,8 +169,31 @@ def save_objs(rows: List, left_model: SQLModel) -> List[SQLModel]:
         for left in rows:
             left_obj = left_model(*left).sqlmodel()
             left_obj.id = ids.pop(0)
-            session.add(left_obj)
             objs.append(left_obj)
+            session.add(left_obj)
         session.commit()
-        [session.refresh(o) for o in objs]
+        breakpoint()
+        if refresh:
+            [session.refresh(o) for o in objs]
     return objs
+
+
+async def save_graph_prob(
+    left_id: int, rows: List, right_model: SQLModel, relation_class: Relation
+) -> int:
+    ids = allocate_ids(len(rows))
+
+    with Database().db as session:
+        for right, prob, *_ in rows:
+            right_obj = right_model(right).sqlmodel()
+            right_obj.id = ids.pop(0)
+            session.add(right_obj)
+            relation = Relation(
+                src=left_id,
+                rtype=relation_class.TYPE.id,
+                dst=right_obj.id,
+                probability=prob,
+            )
+            session.add(relation.sqlmodel())
+        session.commit()
+    return len(rows)
