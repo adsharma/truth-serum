@@ -61,8 +61,10 @@ async def async_flow():
     print(f"saved {n} country, capital, pairs")
     rows = csv.reader(open("truth/seed/viewpoints.csv"))
     next(rows)  # skip header
-    n = save_objs(list(rows), Viewpoint)
-    print(f"saved {n} viewpoints")
+    objs = save_objs(list(rows), Viewpoint)
+    print(f"saved {len(objs)} viewpoints")
+    root_topic = save_objs([("Root", "Root topic")], Topic)
+    print(f"root topic: {root_topic}")
     return n
 
 

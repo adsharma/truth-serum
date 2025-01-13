@@ -161,13 +161,16 @@ def save_graph(
 
 
 # Unlike save_graph, this saves only objects of a given type. Relations to be added later
-def save_objs(rows: List, left_model: SQLModel) -> int:
+def save_objs(rows: List, left_model: SQLModel) -> List[SQLModel]:
     ids = allocate_ids(len(rows))
+    objs = []
 
     with Database().db as session:
         for left in rows:
             left_obj = left_model(*left).sqlmodel()
             left_obj.id = ids.pop(0)
             session.add(left_obj)
+            objs.append(left_obj)
         session.commit()
-    return len(rows)
+        [session.refresh(o) for o in objs]
+    return objs
