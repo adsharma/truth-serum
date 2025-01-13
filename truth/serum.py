@@ -4,8 +4,8 @@ import io
 import re
 from typing import List
 
-from database import Database, allocate_ids, engine
-from kg import InstanceOf, Relation
+from database import engine
+from kg import InstanceOf, save_graph, save_objs
 from langchain_ollama import OllamaLLM
 from prefect import flow, task
 from prefect.logging import get_run_logger
@@ -50,45 +50,20 @@ async def fetch_countries() -> List[Country]:
         csv_string = extract_code(text)
     else:
         csv_string = text
-    data = [
-        {"id": i + 1, "name": row[0], "capital": row[1]}
-        for i, row in enumerate(csv.reader(io.StringIO(csv_string)))
-        if len(row) == 2
-    ]
-    countries = [Country(c["name"]) for c in data]
-    capitals = [City(c["capital"]) for c in data]
 
-    # 10 = 5 countries + 5 capitals
-    ids = allocate_ids(10)
-
-    with Database().db as session:
-        for country, capital in zip(countries, capitals):
-            country_model = country.sqlmodel()
-            capital_model = capital.sqlmodel()
-            country_model.id = ids.pop(0)
-            capital_model.id = ids.pop(0)
-            session.add(country_model)
-            session.add(capital_model)
-            relation = Relation(
-                src=country_model.id,
-                rtype=CapitalRelation.TYPE.id,
-                dst=capital_model.id,
-            )
-            session.add(relation.sqlmodel())
-        session.commit()
-    return countries
-
-
-@task
-async def process_countries(countries: List[Country]) -> List[str]:
-    # Process the countries, e.g., extract names
-    return [country.name for country in countries]
+    rows = list(csv.reader(io.StringIO(csv_string)))
+    return save_graph(rows, Country, City, CapitalRelation)
 
 
 @flow
 async def async_flow():
-    countries = await fetch_countries()
-    return await process_countries(countries)
+    n = await fetch_countries()
+    print(f"saved {n} country, capital, pairs")
+    rows = csv.reader(open("truth/seed/viewpoints.csv"))
+    next(rows)  # skip header
+    n = save_objs(list(rows), Viewpoint)
+    print(f"saved {n} viewpoints")
+    return n
 
 
 def init_edge_types():

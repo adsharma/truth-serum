@@ -1,9 +1,10 @@
 from dataclasses import dataclass, field
 from datetime import date
+from typing import List
 
-from database import Database
+from database import Database, allocate_ids
 from fquery.sqlmodel import SQL_PK, model
-from sqlmodel import select
+from sqlmodel import SQLModel, select
 
 
 @model(global_id=True)
@@ -134,3 +135,39 @@ class TypeRelation:
 @property
 class InstanceOf:
     pass
+
+
+def save_graph(
+    rows: List, left_model: SQLModel, right_model: SQLModel, relation_class: Relation
+) -> int:
+    ids = allocate_ids(2 * len(rows))
+
+    with Database().db as session:
+        for left, right, *_ in rows:
+            left_obj = left_model(left).sqlmodel()
+            right_obj = right_model(right).sqlmodel()
+            left_obj.id = ids.pop(0)
+            right_obj.id = ids.pop(0)
+            session.add(left_obj)
+            session.add(right_obj)
+            relation = Relation(
+                src=left_obj.id,
+                rtype=relation_class.TYPE.id,
+                dst=right_obj.id,
+            )
+            session.add(relation.sqlmodel())
+        session.commit()
+    return len(rows)
+
+
+# Unlike save_graph, this saves only objects of a given type. Relations to be added later
+def save_objs(rows: List, left_model: SQLModel) -> int:
+    ids = allocate_ids(len(rows))
+
+    with Database().db as session:
+        for left in rows:
+            left_obj = left_model(*left).sqlmodel()
+            left_obj.id = ids.pop(0)
+            session.add(left_obj)
+        session.commit()
+    return len(rows)
