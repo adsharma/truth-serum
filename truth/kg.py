@@ -172,7 +172,6 @@ async def save_objs(rows: List, left_model: SQLModel, refresh=False) -> List[SQL
             objs.append(left_obj)
             session.add(left_obj)
         session.commit()
-        breakpoint()
         if refresh:
             [session.refresh(o) for o in objs]
     return objs
